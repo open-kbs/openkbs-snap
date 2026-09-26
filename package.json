@@ -1,0 +1,11 @@
+{
+  "name": "openkbs-snap",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chrome extension: annotate screenshots into issues, export a report the OpenKBS board can import.",
+  "scripts": {
+    "check": "for f in bg.js content.js console-hook.js panel.js popup.js lib/*.js; do node --check $f || exit 1; done && node -e \"JSON.parse(require('fs').readFileSync('manifest.json','utf8'))\" && echo ok",
+    "package": "./scripts/package.sh"
+  },
+  "license": "MIT"
+}
