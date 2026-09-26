@@ -93,7 +93,8 @@
     c.height = Math.max(1, Math.round(rect.h * sy));
     c.getContext('2d').drawImage(img, rect.x * sx, rect.y * sy, rect.w * sx, rect.h * sy, 0, 0, c.width, c.height);
     const issues = ((await chrome.runtime.sendMessage({ type: 'snap:issues' })) || {}).issues || [];
-    openEditor(c, context, issues, sx);
+    const connection = ((await chrome.runtime.sendMessage({ type: 'snap:connection' })) || {}).connection || null;
+    openEditor(c, context, issues, sx, connection);
   }
 
   function loadImage(src) {
@@ -146,7 +147,7 @@
   }
 
   // ---------- editor ----------
-  function openEditor(base, context, issues, sx) {
+  function openEditor(base, context, issues, sx, connection) {
     const W = base.width, H = base.height;
     const SIDE = 300;
     const maxW = Math.max(240, window.innerWidth * 0.94 - SIDE - 48);
@@ -211,6 +212,14 @@
         .actions .primary:hover{background:var(--brand-hover)}
         .actions .primary:disabled{opacity:.6}
         .err{color:var(--danger);font-size:12px;display:none;padding-top:6px}
+        .note-label{display:flex;align-items:center;justify-content:space-between}
+        .mic{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border-strong);border-radius:11px;background:var(--bg);color:var(--text);font:inherit;font-size:11px;font-weight:600;cursor:pointer;text-transform:none;letter-spacing:0}
+        .mic svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+        .mic:hover{background:var(--surface)}
+        .mic.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:snapPulse 1.2s ease-in-out infinite}
+        .mic.busy{opacity:.6;cursor:progress}
+        @keyframes snapPulse{0%,100%{box-shadow:0 0 0 0 rgba(180,35,24,.45)}50%{box-shadow:0 0 0 6px rgba(180,35,24,0)}}
+        .mic-status{font-size:11px;color:var(--muted);padding-top:4px}
       </style>
       <div class="bg"></div>
       <div class="modal">
@@ -240,8 +249,9 @@
               </div>
               <textarea class="expected" placeholder="Expected behavior"></textarea>
             </div>
-            <label>Note for this screenshot</label>
+            <label class="note-label">Note for this screenshot<button class="mic" type="button" title="Dictate (click to start, click again to stop)" hidden><svg viewBox="0 0 16 16"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5"/></svg><span>Dictate</span></button></label>
             <textarea class="note" placeholder="What is wrong here?"></textarea>
+            <div class="mic-status" hidden></div>
             <div class="err"></div>
             <div class="ctx"></div>
             <div class="actions"><button class="cancel">Cancel</button><button class="save primary">Save screenshot</button></div>
@@ -384,8 +394,41 @@
     canvas.addEventListener('pointerup', endDraw);
     canvas.addEventListener('pointercancel', endDraw);
 
+    // dictation (only when connected to a project: the studio transcribes)
+    const mic = q('.mic'), micStatus = q('.mic-status'), noteEl = q('.note');
+    let micState = 'idle', micTimer = null, micT0 = 0;
+    if (connection) mic.hidden = false;
+    const setMicStatus = (text) => { micStatus.hidden = !text; micStatus.textContent = text || ''; };
+    const micLabel = (t) => { mic.querySelector('span').textContent = t; };
+    const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); micLabel('Dictate'); };
+    mic.addEventListener('click', async () => {
+      if (micState === 'idle') {
+        micState = 'starting'; mic.classList.add('busy'); setMicStatus('Starting microphone…');
+        const r = await chrome.runtime.sendMessage({ type: 'snap:mic-start' });
+        mic.classList.remove('busy');
+        if (!r || r.error) { micState = 'idle'; setMicStatus(r && r.error || 'Microphone unavailable'); return; }
+        micState = 'rec'; mic.classList.add('rec'); micT0 = Date.now(); micLabel('Stop 0:00');
+        micTimer = setInterval(() => { const s = Math.round((Date.now() - micT0) / 1000); micLabel(`Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`); }, 500);
+        setMicStatus('Listening… click Stop when done.');
+      } else if (micState === 'rec') {
+        micState = 'busy'; clearInterval(micTimer); mic.classList.remove('rec'); mic.classList.add('busy'); micLabel('Transcribing');
+        setMicStatus('Transcribing…');
+        const rec = await chrome.runtime.sendMessage({ type: 'snap:mic-stop' });
+        if (!rec || rec.error) { finishMic(); setMicStatus(rec && rec.error || 'Recording failed'); return; }
+        if (rec.bytes < 1500) { finishMic(); setMicStatus('Too short — nothing recorded.'); return; }
+        const t = await chrome.runtime.sendMessage({ type: 'snap:transcribe', dataUrl: rec.dataUrl, format: rec.format });
+        finishMic();
+        if (!t || t.error) { setMicStatus('Transcription failed: ' + (t && t.error || 'no response')); return; }
+        const text = (t.text || '').trim();
+        if (!text) { setMicStatus('No speech recognised.'); return; }
+        noteEl.value = (noteEl.value.trim() ? noteEl.value.replace(/\s+$/, '') + ' ' : '') + text;
+        setMicStatus('');
+        noteEl.focus();
+      }
+    });
+
     // actions
-    const close = () => { window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
+    const close = () => { if (micState === 'rec') chrome.runtime.sendMessage({ type: 'snap:mic-cancel' }); window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
     const save = async () => {
       const errEl = q('.err');
       let issueId = issueSel.value, newIssue = null;

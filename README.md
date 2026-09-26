@@ -44,6 +44,13 @@ Chrome MV3 first. Same WebExtension code for Edge / Firefox; Safari via Xcode co
 3. **Load unpacked** → pick the unzipped folder.
 4. Pin the "OpenKBS Snap" icon from the puzzle menu. Reload any tab that was open before installing.
 
+## Connect to a project (direct send + dictation)
+
+Open your OpenKBS Studio project in a tab, click the Snap icon → **Connect to this project** (or paste the studio URL). The extension then talks to that studio with your existing studio login; no token to copy. Once connected:
+
+- **Send to board** (popup or panel) creates one card per issue with the screenshots attached, exactly like the studio's zip import. The report is marked as sent; start a **New report** for the next batch.
+- **Dictate** in the screenshot editor: click the mic next to the note, talk, click Stop. The clip is transcribed by the connected project (model selectable in the popup: Gemini 3.5 Transcribe, GPT-4o Transcribe, Gemini Flash) and the text lands in the note. Chrome asks for the microphone once, on an extension page.
+
 ## Use
 
 - **Alt+Shift+S** (Mac: ⌥⇧S), or click the icon → **Capture area**, then drag a rectangle over the page.
@@ -66,10 +73,11 @@ Bump `version` in both `manifest.json` and `package.json`, package, then attach 
 ## Files
 
 - `manifest.json` – MV3, `<all_urls>` host permission (needed for capture + console hook on any page).
-- `bg.js` – service worker: hotkeys, captureVisibleTab, storage, badge.
+- `bg.js` – service worker: hotkeys, captureVisibleTab, storage, badge, studio connection (`/api/snap/info`, `/api/snap/import`, `/api/transcribe`), mic relay.
 - `console-hook.js` – MAIN-world hook buffering console errors/warnings for the last minute.
 - `content.js` – selection overlay, crop, annotation editor (Shadow DOM), context collection.
-- `popup.html/js` – toolbar popup: capture, open panel, export, new report.
+- `popup.html/js` – toolbar popup: connect project, send to board, capture, panel, export, new report, dictation model.
+- `offscreen.html/js` – offscreen recorder (MediaRecorder) for dictation; `mic-permission.html/js` – one-time mic grant page.
 - `panel.html/js/css` – side panel: issue list, edit, export.
 - `lib/export.js` – zip export shared by popup and panel.
 - `lib/store.js` – chrome.storage.local schema (`session` + `img:<shotId>`).

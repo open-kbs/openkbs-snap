@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "OpenKBS Snap",
-  "version": "0.1.0",
-  "description": "Select an area of the page, draw on the screenshot, add a note, save into an issue. Export the session as a zip with a Markdown report.",
+  "version": "0.2.0",
+  "description": "Select an area of the page, draw on the screenshot, dictate or type a note, save it into an issue. Send issues straight to your OpenKBS board, or export a zip.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -10,7 +10,8 @@
     "sidePanel",
     "downloads",
     "contextMenus",
-    "activeTab"
+    "activeTab",
+    "offscreen"
   ],
   "host_permissions": [
     "<all_urls>"

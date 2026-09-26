@@ -9,6 +9,10 @@ async function load() {
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
 
 async function render() {
+  const conn = await snapGetConnection();
+  $('#send').hidden = !conn;
+  $('#send').disabled = !session.issues.length;
+  $('#capture').classList.toggle('btn-primary', !conn);
   $('#sessionName').value = session.name || '';
   const shots = snapShotCount(session);
   $('#stats').textContent = `${session.issues.length} issue(s) · ${shots} screenshot(s) · started ${session.createdAt.slice(0, 16).replace('T', ' ')}`;
@@ -87,6 +91,16 @@ $('#lightbox').addEventListener('click', () => { $('#lightbox').hidden = true; }
 $('#capture').addEventListener('click', async () => {
   const res = await chrome.runtime.sendMessage({ type: 'snap:capture-active' });
   if (res && res.error) toast('Cannot capture: ' + res.error);
+});
+
+$('#send').addEventListener('click', async () => {
+  $('#send').disabled = true; $('#send').textContent = 'Sending…';
+  const r = await chrome.runtime.sendMessage({ type: 'snap:send-to-board' });
+  $('#send').textContent = 'Send to board';
+  if (r && r.error) { $('#send').disabled = false; toast(r.error); return; }
+  toast(`Sent ${r.cardIds.length} card(s) to the board`);
+  window.open(r.boardUrl, '_blank');
+  await load();
 });
 
 $('#export').addEventListener('click', async () => {
