@@ -14,7 +14,8 @@ body{width:300px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:1
 .link:hover{color:var(--brand)}
 .model-row{display:flex;align-items:center;gap:8px;margin:0}
 .model-row span{flex:none;font-size:11px}
-.model-row select{font-size:12px;padding:4px 6px}
+.model-row select{font-size:12px;padding:4px 6px;min-width:0}
+#model{flex:1.4}#lang{flex:1}
 .menu{display:flex;flex-direction:column;gap:6px}
 .lbl{display:inline-flex;align-items:center;gap:9px}
 .lbl svg{flex:none;opacity:.9}
@@ -37,7 +38,7 @@ body{width:300px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:1
       <div id="pasteRow" class="row" hidden><input id="connUrl" placeholder="https://…studio URL"><button id="connectUrl" class="btn btn-sm">Connect</button></div>
     </div>
     <div id="liveLine" class="live-line" hidden></div>
-    <label id="modelRow" class="model-row" hidden><span class="faint">Dictation</span><select id="model"></select></label>
+    <div id="modelRow" class="model-row" hidden><span class="faint">Dictation</span><select id="model"></select><select id="lang" title="Spoken language"></select></div>
   </div>
   <div class="menu">
     <button id="capture" class="btn btn-primary btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5V3a1 1 0 0 1 1-1h2M11 2h2a1 1 0 0 1 1 1v2M14 11v2a1 1 0 0 1-1 1h-2M5 14H3a1 1 0 0 1-1-1v-2"/><rect x="5" y="5" width="6" height="6" rx="1" stroke-dasharray="2 1.5"/></svg>Capture area</span><kbd>⌥ ⇧ S</kbd></button>

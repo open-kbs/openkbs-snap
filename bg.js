@@ -263,9 +263,11 @@ async function micStop() {
 }
 async function transcribe(dataUrl, format) {
   const conn = await requireConnection();
-  const { transcribeModel } = await snapGetSettings();
+  const { transcribeModel, transcribeLanguage } = await snapGetSettings();
+  const headers = { 'Content-Type': 'application/octet-stream', 'X-Audio-Format': format || 'webm', 'X-Transcribe-Model': transcribeModel };
+  if (transcribeLanguage && transcribeLanguage !== 'auto') headers['X-Transcribe-Language'] = transcribeLanguage;
   const data = await studioFetch(conn.origin, '/api/transcribe', {
-    method: 'POST', headers: { 'Content-Type': 'application/octet-stream', 'X-Audio-Format': format || 'webm', 'X-Transcribe-Model': transcribeModel },
+    method: 'POST', headers,
     body: snapDataUrlToU8(dataUrl),
   });
   return { text: (data.text || '').trim() };

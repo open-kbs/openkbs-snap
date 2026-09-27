@@ -46,6 +46,9 @@ async function render() {
   const sel = $('#model');
   if (!sel.options.length) for (const m of SNAP_TRANSCRIBE_MODELS) { const o = document.createElement('option'); o.value = m.id; o.textContent = m.label; sel.appendChild(o); }
   sel.value = settings.transcribeModel;
+  const lang = $('#lang');
+  if (!lang.options.length) for (const l of SNAP_TRANSCRIBE_LANGS) { const o = document.createElement('option'); o.value = l.id; o.textContent = l.label; lang.appendChild(o); }
+  lang.value = settings.transcribeLanguage || 'auto';
 }
 
 async function refreshLive() {
@@ -68,6 +71,7 @@ $('#connectUrl').addEventListener('click', () => { const u = $('#connUrl').value
 $('#connUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('#connectUrl').click(); });
 $('#disconnect').addEventListener('click', async () => { await chrome.runtime.sendMessage({ type: 'snap:disconnect' }); busy = null; msg('Disconnected'); await render(); });
 $('#model').addEventListener('change', async (e) => { await snapSetSettings({ transcribeModel: e.target.value }); });
+$('#lang').addEventListener('change', async (e) => { await snapSetSettings({ transcribeLanguage: e.target.value }); });
 
 $('#capture').addEventListener('click', async () => {
   const res = await chrome.runtime.sendMessage({ type: 'snap:capture-active' });
