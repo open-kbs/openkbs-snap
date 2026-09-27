@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenKBS Snap",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "description": "Snap a spot on any page, draw, say what you want. Send it to your OpenKBS board or start a vibecoding chat right away.",
   "permissions": [
     "storage",

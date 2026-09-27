@@ -19,6 +19,8 @@ async function openPanel(tab) {
 async function startCapture(tab) {
   if (!tab || !tab.id) return;
   if (!/^https?:|^file:/.test(tab.url || '')) { console.warn('Snap: cannot capture this page', tab.url); return; }
+  // The page's content script may be missing (installed after the page
+  // loaded) or dead (extension reloaded since): inject a fresh copy and retry.
   try { await chrome.tabs.sendMessage(tab.id, { type: 'snap:start' }); }
   catch {
     await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });

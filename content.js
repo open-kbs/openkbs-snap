@@ -1,13 +1,28 @@
 // OpenKBS Snap content script: area selection → crop → annotate → save into an issue.
 (() => {
-  if (window.__openkbsSnap) return;
-  window.__openkbsSnap = true;
+  // One live instance per page. After the extension is reloaded (update, dev
+  // reload) the old instance is still here with a dead runtime: it can never
+  // receive a message again, so a new instance takes over instead of bailing.
+  const prev = window.__openkbsSnap;
+  if (prev && typeof prev.alive === 'function' && prev.alive()) return;
+  if (prev && typeof prev.teardown === 'function') { try { prev.teardown(); } catch {} }
+  for (const el of document.querySelectorAll('[data-openkbs-snap]')) el.remove();
 
   const Z = 2147483647;
   let host = null, shadow = null, busy = false;
 
+  window.__openkbsSnap = {
+    alive: () => { try { return !!chrome.runtime && !!chrome.runtime.id; } catch { return false; } },
+    teardown: () => teardown(),
+  };
+
   chrome.runtime.onMessage.addListener((msg, _s, send) => {
-    if (msg.type === 'snap:start') { startSelect(); send({ ok: true }); }
+    if (msg.type === 'snap:start') {
+      // A stuck flag with nothing on screen (an earlier flow died mid-way) must
+      // not block every further capture until a page refresh.
+      if (busy && !host) busy = false;
+      startSelect(); send({ ok: true });
+    }
   });
 
   function mount(html) {
