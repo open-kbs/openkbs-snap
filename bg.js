@@ -257,7 +257,9 @@ async function ensureOffscreen() {
   if (await chrome.offscreen.hasDocument()) return;
   await chrome.offscreen.createDocument({ url: 'offscreen.html', reasons: ['USER_MEDIA'], justification: 'Record a short voice note for a screenshot while the user holds the mic button' });
 }
-async function micStart() {
+let micTabId = null;
+async function micStart(tabId) {
+  micTabId = tabId || null;
   await ensureOffscreen();
   const r = await chrome.runtime.sendMessage({ target: 'offscreen', type: 'mic:start' });
   if (r && r.error === 'permission') {
@@ -296,6 +298,10 @@ const respond = (p, sendResponse) => { p.then((r) => sendResponse(r === undefine
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (!msg || msg.target === 'offscreen') return;
+  if (msg.target === 'bg' && msg.type === 'mic:levels') {
+    if (micTabId != null) chrome.tabs.sendMessage(micTabId, { type: 'snap:mic-levels', levels: msg.levels }).catch(() => {});
+    return;
+  }
   switch (msg.type) {
     case 'snap:capture':
       chrome.tabs.captureVisibleTab(sender.tab.windowId, { format: 'png' }).then((dataUrl) => sendResponse({ dataUrl })).catch((e) => sendResponse({ error: String(e && e.message || e) }));
@@ -311,7 +317,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     case 'snap:connect': return respond(connectTo(msg.url), sendResponse);
     case 'snap:disconnect': return respond(snapSetConnection(null), sendResponse);
     case 'snap:connection': return respond(connectionWithBusy(), sendResponse);
-    case 'snap:mic-start': return respond(micStart(), sendResponse);
+    case 'snap:mic-start': return respond(micStart(sender.tab && sender.tab.id), sendResponse);
     case 'snap:mic-stop': return respond(micStop(), sendResponse);
     case 'snap:mic-cancel': return respond(chrome.offscreen.hasDocument().then((h) => h ? chrome.runtime.sendMessage({ target: 'offscreen', type: 'mic:cancel' }) : null), sendResponse);
     case 'snap:transcribe': return respond(transcribe(msg.dataUrl, msg.format), sendResponse);

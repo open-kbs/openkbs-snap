@@ -2,6 +2,9 @@
 // extension origin, so the mic permission is granted once (mic-permission.html)
 // and works on every page, regardless of the page's own permissions policy.
 let rec = null, chunks = [], stream = null, mime = '';
+// Live level sampling (same scale as the studio mic): one sample per 45 ms,
+// batched to the background every 90 ms, which relays them to the page.
+let actx = null, levelTimer = null;
 
 chrome.runtime.onMessage.addListener((msg, _s, send) => {
   if (!msg || msg.target !== 'offscreen') return;
@@ -18,6 +21,23 @@ async function start() {
   chunks = [];
   rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
   rec.start(250);
+  try {
+    actx = new AudioContext();
+    if (actx.state === 'suspended') await actx.resume().catch(() => {});
+    const analyser = actx.createAnalyser();
+    analyser.fftSize = 1024;
+    actx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Float32Array(analyser.fftSize);
+    let batch = [];
+    levelTimer = setInterval(() => {
+      analyser.getFloatTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+      const rms = Math.sqrt(sum / buf.length);
+      batch.push(Math.min(1, Math.sqrt(rms * 4)));
+      if (batch.length >= 2) { chrome.runtime.sendMessage({ target: 'bg', type: 'mic:levels', levels: batch }).catch(() => {}); batch = []; }
+    }, 45);
+  } catch { /* no visualisation, recording still works */ }
 }
 
 function stop() {
@@ -38,4 +58,4 @@ function stop() {
 }
 
 function cancel() { try { rec && rec.state !== 'inactive' && rec.stop(); } catch {} cleanup(); }
-function cleanup() { if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; rec = null; chunks = []; }
+function cleanup() { clearInterval(levelTimer); levelTimer = null; if (actx) { actx.close().catch(() => {}); actx = null; } if (stream) stream.getTracks().forEach((t) => t.stop()); stream = null; rec = null; chunks = []; }

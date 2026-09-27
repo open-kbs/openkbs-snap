@@ -16,7 +16,11 @@
     teardown: () => teardown(),
   };
 
+  // Live mic levels for the editor's waveform (set while the editor is open).
+  let micLevelSink = null;
+
   chrome.runtime.onMessage.addListener((msg, _s, send) => {
+    if (msg.type === 'snap:mic-levels') { if (micLevelSink) micLevelSink(msg.levels || []); return; }
     if (msg.type === 'snap:start') {
       // A stuck flag with nothing on screen (an earlier flow died mid-way) must
       // not block every further capture until a page refresh.
@@ -253,10 +257,8 @@
         @keyframes snapSpin{to{transform:rotate(360deg)}}
         .mic-status{font-size:11px;color:var(--muted);padding-top:5px}
         .mic-status.working{color:var(--brand)}
-        .mic-bar{height:3px;border-radius:2px;background:var(--surface-2);overflow:hidden;margin-top:6px;display:none}
-        .mic-bar.on{display:block}
-        .mic-bar i{display:block;height:100%;width:40%;background:var(--brand);border-radius:2px;animation:snapSlide 1.1s ease-in-out infinite}
-        @keyframes snapSlide{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
+        .wave{display:block;width:100%;height:36px;margin-top:8px;color:var(--text)}
+        .wave[hidden]{display:none}
         .voice-off{font-size:11px;color:var(--faint);padding:4px 0 2px}
         textarea.note{margin-top:8px}
       </style>
@@ -280,7 +282,7 @@
           <div class="side">
             <div class="voice">
               <button class="mic" type="button" title="Click, speak, click again to stop"><svg viewBox="0 0 16 16"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5"/></svg><span>Say what you want</span></button>
-              <div class="mic-bar"><i></i></div>
+              <canvas class="wave" hidden></canvas>
               <div class="mic-status" hidden></div>
               <div class="voice-off" hidden>Connect a project in the Snap popup to dictate.</div>
             </div>
@@ -477,20 +479,54 @@
     const mic = q('.mic'), micStatus = q('.mic-status'), noteEl = q('.note');
     let micState = 'idle', micTimer = null, micT0 = 0;
     if (!connection) { mic.hidden = true; q('.voice-off').hidden = false; }
-    const micBar = q('.mic-bar');
+    // Scrolling bar waveform like the studio mic: newest sample at the right,
+    // symmetric bars, faint baseline where nothing was sampled. While
+    // transcribing the take freezes and a blue pulse sweeps over it.
+    const wave = q('.wave'), wctx = wave.getContext('2d');
+    const HISTORY = 160, SAMPLE_MS = 45, SWEEP_MS = 1400;
+    let levels = [], waveMode = 'live', waveTimer = null, waveT0 = 0, lastSoundAt = 0;
+    micLevelSink = (ls) => { for (const v of ls) { levels.push(v); if (v > 0.12) lastSoundAt = Date.now(); } if (levels.length > HISTORY) levels = levels.slice(-HISTORY); };
+    const drawWave = () => {
+      const dpr = window.devicePixelRatio || 1;
+      const r = wave.getBoundingClientRect();
+      const W = Math.round(r.width * dpr), H = Math.round(r.height * dpr);
+      if (!W || !H) return;
+      if (wave.width !== W || wave.height !== H) { wave.width = W; wave.height = H; }
+      wctx.clearRect(0, 0, W, H);
+      const barW = 2 * dpr, gap = 2 * dpr, step = barW + gap;
+      const count = Math.floor(W / step), mid = H / 2;
+      const first = Math.max(0, count - levels.length), span = count - first;
+      const phase = ((performance.now() - waveT0) % SWEEP_MS) / SWEEP_MS;
+      const sweep = first + phase * span, halo = Math.max(6, span * 0.12);
+      for (let i = 0; i < count; i++) {
+        const idx = levels.length - count + i;
+        const v = idx >= 0 ? levels[idx] : 0;
+        let h = Math.max(2 * dpr, v * H * 0.92);
+        let alpha = idx >= 0 ? (v > 0.05 ? 0.9 : 0.35) : 0.18;
+        wctx.fillStyle = '#1B1F24';
+        if (waveMode === 'transcribing' && idx >= 0) {
+          const d = Math.abs(i - sweep) / halo, k = d < 1 ? 1 - d * d : 0;
+          alpha = 0.25 + 0.75 * k; h = Math.max(2 * dpr, h * (1 + 0.5 * k));
+          if (k > 0) wctx.fillStyle = '#3D85C9';
+        }
+        wctx.globalAlpha = alpha;
+        wctx.beginPath(); wctx.roundRect(i * step, mid - h / 2, barW, h, barW / 2); wctx.fill();
+      }
+      wctx.globalAlpha = 1;
+      if (waveMode === 'live' && lastSoundAt && Date.now() - lastSoundAt > 4000) setMicStatus('No sound from the microphone — check the input device.');
+      else if (waveMode === 'live' && micStatus.textContent.startsWith('No sound')) setMicStatus('Listening… click Stop when done.');
+    };
+    const showWave = (mode) => { waveMode = mode; waveT0 = performance.now(); wave.hidden = false; clearInterval(waveTimer); waveTimer = setInterval(drawWave, SAMPLE_MS); drawWave(); };
+    const hideWave = () => { clearInterval(waveTimer); waveTimer = null; wave.hidden = true; };
     let workTimer = null;
     const setMicStatus = (text, working) => {
       micStatus.hidden = !text; micStatus.textContent = text || ''; micStatus.classList.toggle('working', !!working);
-      micBar.classList.toggle('on', !!working);
       clearInterval(workTimer);
       if (working) { const t0 = Date.now(); workTimer = setInterval(() => { micStatus.textContent = `${text} ${Math.round((Date.now() - t0) / 1000)} s`; }, 500); }
     };
-    // The note grows with its content (typing or dictation) up to 40vh, then scrolls.
-    const growNote = () => { noteEl.style.height = 'auto'; noteEl.style.height = Math.min(noteEl.scrollHeight + 2, window.innerHeight * 0.4) + 'px'; };
-    noteEl.addEventListener('input', growNote);
     const micLabel = (t) => { mic.querySelector('span').textContent = t; };
     const micIdleLabel = () => { const has = !!noteEl.value.trim(); mic.classList.toggle('again', has); micLabel(has ? 'Speak again' : 'Say what you want'); };
-    const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); noteEl.disabled = false; setMicStatus(''); micIdleLabel(); };
+    const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); noteEl.disabled = false; hideWave(); setMicStatus(''); micIdleLabel(); };
     noteEl.addEventListener('input', () => { if (micState === 'idle') micIdleLabel(); });
     mic.addEventListener('click', async () => {
       if (micState === 'idle') {
@@ -498,12 +534,13 @@
         const r = await chrome.runtime.sendMessage({ type: 'snap:mic-start' });
         mic.classList.remove('busy');
         if (!r || r.error) { micState = 'idle'; setMicStatus(r && r.error || 'Microphone unavailable'); return; }
-        micState = 'rec'; mic.classList.add('rec'); micT0 = Date.now(); micLabel('Stop 0:00'); setMicStatus('');
+        micState = 'rec'; mic.classList.add('rec'); micT0 = Date.now(); micLabel('Stop 0:00');
+        levels = []; lastSoundAt = Date.now(); showWave('live'); setMicStatus('Listening… click Stop when done.');
         micTimer = setInterval(() => { const s = Math.round((Date.now() - micT0) / 1000); micLabel(`Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`); }, 500);
-        setMicStatus('Listening… click Stop when done.');
       } else if (micState === 'rec') {
         micState = 'busy'; clearInterval(micTimer); mic.classList.remove('rec'); mic.classList.add('busy'); micLabel('Transcribing');
         noteEl.disabled = true;
+        showWave('transcribing');
         setMicStatus('Transcribing, the text will appear in the note…', true);
         const rec = await chrome.runtime.sendMessage({ type: 'snap:mic-stop' });
         if (!rec || rec.error) { finishMic(); setMicStatus(rec && rec.error || 'Recording failed'); return; }
@@ -522,7 +559,7 @@
     });
 
     // actions
-    const close = () => { if (micState === 'rec') chrome.runtime.sendMessage({ type: 'snap:mic-cancel' }); window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
+    const close = () => { micLevelSink = null; hideWave(); if (micState === 'rec') chrome.runtime.sendMessage({ type: 'snap:mic-cancel' }); window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
     let saving = false;
     const setBusyUi = (on, label) => { saving = on; btnA.disabled = btnB.disabled = on; if (label) btnA.textContent = label; };
     // act: 'local' (pending group), 'chat' / 'board' (new group sent now), 'add' (sent group).
