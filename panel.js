@@ -46,7 +46,7 @@ async function render() {
       <label>Notes</label><textarea class="notes" placeholder="Free text for the whole group">${esc(issue.notes)}</textarea>
       <label>Screenshots (${issue.shots.length})</label>
       <div class="shots"></div>
-      ${conn ? `<div class="dest"><button class="btn btn-sm to-board">To board</button><button class="btn btn-sm btn-primary to-chat">New chat</button></div>` : ''}
+      ${conn ? `<div class="dest"><button class="btn btn-sm to-board">Send to Board</button><button class="btn btn-sm btn-primary to-chat">Send to AI</button></div>` : ''}
       <div class="tools">
         <button class="btn btn-ghost btn-sm btn-text-danger del">Delete</button>
       </div>`;
@@ -61,7 +61,7 @@ async function render() {
       btn.disabled = true; const t = btn.textContent; btn.textContent = 'Sending…';
       const r = await chrome.runtime.sendMessage({ type: 'snap:send-issue', issueId: issue.id, dest, mode: 'queue' });
       if (r && r.error) { btn.disabled = false; btn.textContent = t; toast(r.error); return; }
-      toast(dest === 'board' ? `Card created: «${r.link.title}»` : (r.live.state === 'queued' ? `Chat queued: «${r.link.title}»` : `Chat started: «${r.link.title}»`));
+      toast(dest === 'board' ? `Sent to Board: «${r.link.title}»` : (r.live.state === 'queued' ? `Sent to AI: «${r.link.title}» — queued` : `Sent to AI: «${r.link.title}» — working`));
       await load();
     };
     const tb = $('.to-board', el), tc = $('.to-chat', el);
@@ -103,7 +103,7 @@ $('#capture').addEventListener('click', async () => { const res = await chrome.r
 $('#send').addEventListener('click', async () => {
   $('#send').disabled = true; $('#send').textContent = 'Sending…';
   const r = await chrome.runtime.sendMessage({ type: 'snap:send-pending-board' });
-  $('#send').textContent = 'Send pending to board'; $('#send').disabled = false;
+  $('#send').textContent = 'Send pending to Board'; $('#send').disabled = false;
   if (r && r.error) { toast(r.error); return; }
   toast(`${r.count} card(s) on the board`);
   await load();

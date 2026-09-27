@@ -24,7 +24,7 @@ card, reload the captured tab. Export as a zip stays in the ⋯ menu as a rescue
 
 Open your OpenKBS Studio project in a tab, click the Snap icon → **Connect to this project** (or paste the studio URL). The extension then talks to that studio with your existing studio login; no token to copy. Once connected:
 
-- In the editor, **New chat** (default, ⌘/Ctrl+Enter) starts a chat from this snap; **To board** (⌘⇧Enter) makes a card; **Add to …** picks a pending group (local), a sent chat (follow-up) or a sent card (more screenshots). "New · keep pending" stages without sending; **Send pending to board** in the popup sends all staged groups as cards.
+- In the editor, **Send to AI** (default, ⌘/Ctrl+Enter) starts a chat from this snap; **Send to Board** (⌘⇧Enter) makes a card; **Add to …** picks a pending group (local), a sent chat (follow-up) or a sent card (more screenshots). "New · keep pending" stages without sending; **Send pending to Board** in the popup sends all staged groups as cards.
 - **Dictate** in the screenshot editor: click the mic next to the note, talk, click Stop. The clip is transcribed by the connected project (model selectable in the popup: Gemini 3.5 Transcribe, GPT-4o Transcribe, Gemini Flash) and the text lands in the note. Chrome asks for the microphone once, on an extension page.
 
 ## Use

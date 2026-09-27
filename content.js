@@ -241,7 +241,7 @@
       </style>
       <div class="bg"></div>
       <div class="modal">
-        <div class="hd"><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt=""><h1>Annotate screenshot</h1><span class="hint"><kbd>Esc</kbd> cancel &nbsp; <kbd>⌘</kbd><kbd>↵</kbd> main action &nbsp; <kbd>⌘</kbd><kbd>⇧</kbd><kbd>↵</kbd> to board</span></div>
+        <div class="hd"><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt=""><h1>Annotate screenshot</h1><span class="hint"><kbd>Esc</kbd> cancel &nbsp; <kbd>⌘</kbd><kbd>↵</kbd> send to AI &nbsp; <kbd>⌘</kbd><kbd>⇧</kbd><kbd>↵</kbd> send to Board</span></div>
         <div class="tb">
           <div class="seg">
             <button data-tool="pen" class="on">${ICON.pen}Pen</button>
@@ -275,7 +275,7 @@
             <div class="err"></div>
             <div class="ctx"></div>
             <div class="busy-hint" hidden></div>
-            <div class="actions"><button class="cancel ghost-btn">Cancel</button><span class="grow"></span><button class="btn-b" hidden>To board</button><button class="btn-a primary">New chat</button></div>
+            <div class="actions"><button class="cancel ghost-btn">Cancel</button><span class="grow"></span><button class="btn-b" hidden>Send to Board</button><button class="btn-a primary">Send to AI</button></div>
           </div>
         </div>
       </div>`);
@@ -292,7 +292,7 @@
     const destSel = q('.dest'), newBox = q('.new-issue'), newToggle = q('.new-toggle');
     const btnA = q('.btn-a'), btnB = q('.btn-b'), busyHint = q('.busy-hint');
     const addOpt = (parent, value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; parent.appendChild(o); return o; };
-    addOpt(destSel, 'new', connection ? 'New' : 'New (pending)');
+    addOpt(destSel, 'new', connection ? 'New request' : 'New (pending)');
     if (connection) addOpt(destSel, 'new-pending', 'New · keep pending, send later');
     if (issues.pending.length) {
       const g = document.createElement('optgroup'); g.label = 'Pending';
@@ -322,11 +322,11 @@
       const c = choice();
       btnB.hidden = true; btnA.dataset.mode = '';
       newToggle.hidden = !(c.kind === 'new' || c.kind === 'new-pending');
-      if (c.kind === 'new' && connection) { btnA.textContent = 'New chat'; btnA.dataset.act = 'chat'; btnB.hidden = false; btnB.textContent = 'To board'; }
+      if (c.kind === 'new' && connection) { btnA.textContent = 'Send to AI'; btnA.dataset.act = 'chat'; btnB.hidden = false; btnB.textContent = 'Send to Board'; }
       else if (c.kind === 'new' || c.kind === 'new-pending') { btnA.textContent = 'Save'; btnA.dataset.act = 'local'; }
       else if (c.kind === 'pending') { btnA.textContent = `Add to #${c.issue.n}`; btnA.dataset.act = 'local'; }
-      else { btnA.textContent = `Add to «${(c.issue.title || '').slice(0, 24)}»`; btnA.dataset.act = 'add'; }
-      if (c.kind === 'new' && connection && busyWorking) showHint(`<b>${esc(busyName)}</b> is working — a new chat will start when it is free.<button type="button" data-parallel="1">Start anyway</button>`);
+      else { btnA.textContent = `Send to «${(c.issue.title || '').slice(0, 22)}»`; btnA.dataset.act = 'add'; }
+      if (c.kind === 'new' && connection && busyWorking) showHint(`<b>${esc(busyName)}</b> is working — the AI will take this when it is free.<button type="button" data-parallel="1">Start anyway</button>`);
       else if (c.kind === 'sent' && c.issue.link.kind === 'chat' && busyWorking && !busyWorking.chats.some((x) => x.sessionId === c.issue.link.sessionId)) showHint(`<b>${esc(busyName)}</b> is working — the follow-up will be held until it is free.`);
       else showHint('');
     };
@@ -517,7 +517,7 @@
           if (r.result === 'held') { setBusyUi(false); syncButtons(); showHint(`Held: <b>${esc(busyName || 'another chat')}</b> is working.<button type="button" data-force="1">Send anyway</button>`); return; }
           if (r.result === 'busy') return fail('That chat could not take the message right now. Try again in a moment.');
           close();
-          toast(c.issue.link.kind === 'card' ? `Added to card «${c.issue.title}»` : `Sent to chat «${c.issue.title}»`);
+          toast(c.issue.link.kind === 'card' ? `Sent to card «${c.issue.title}»` : `Sent to AI: «${c.issue.title}»`);
           return;
         }
         // local save first (new or pending group)
@@ -534,8 +534,8 @@
         const r = await chrome.runtime.sendMessage({ type: 'snap:send-issue', issueId: res.issueId, dest: act === 'board' ? 'board' : 'chat', mode: o.mode || 'queue' });
         if (!r || r.error) return fail((act === 'board' ? 'Card' : 'Chat') + ' failed (kept as pending): ' + (r && r.error || 'no response'));
         close();
-        if (act === 'board') toast(`Card created: «${r.link.title}»`);
-        else toast(r.live.state === 'queued' ? `Chat queued: «${r.link.title}» — starts when the project is free` : `Chat started: «${r.link.title}»`);
+        if (act === 'board') toast(`Sent to Board: «${r.link.title}»`);
+        else toast(r.live.state === 'queued' ? `Sent to AI: «${r.link.title}» — starts when the project is free` : `Sent to AI: «${r.link.title}» — working`);
       } catch (e) { fail(String(e && e.message || e)); }
     };
     q('.cancel').addEventListener('click', close);
