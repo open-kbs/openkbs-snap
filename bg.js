@@ -215,6 +215,14 @@ async function refreshStatus(opts = {}) {
     const c = (st.cards || []).find((x) => x.cardId === i.link.cardId);
     live[i.id] = { kind: 'card', title: i.link.title, state: c && c.missing ? 'gone' : 'board', columnName: c ? c.columnName : undefined, seen: true, at: Date.now() };
   }
+  // A chat or card deleted in the studio has nothing left to show: drop it.
+  const gone = Object.keys(live).filter((id) => live[id].state === 'gone');
+  if (gone.length) {
+    for (const id of gone) delete live[id];
+    const cur = await snapGetSession();
+    cur.issues = cur.issues.filter((i) => !gone.includes(i.id));
+    await snapSetSession(cur);
+  }
   await snapSetLive(live);
   if (!opts.silent) for (const n of notify) {
     try { chrome.notifications.create(`snap-${n.id}`, { type: 'basic', iconUrl: 'icons/icon-128.png', title: n.title, message: n.message.slice(0, 200) }); } catch {}
