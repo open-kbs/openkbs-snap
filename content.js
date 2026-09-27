@@ -237,22 +237,28 @@
         .actions .primary:hover{background:var(--brand-hover)}
         .actions .primary:disabled{opacity:.6}
         .err{color:var(--danger);font-size:12px;display:none;padding-top:6px}
-        .note-label{display:flex;align-items:center;justify-content:space-between}
-        .mic{display:inline-flex;align-items:center;gap:5px;height:22px;padding:0 8px;border:1px solid var(--border-strong);border-radius:11px;background:var(--bg);color:var(--text);font:inherit;font-size:11px;font-weight:600;cursor:pointer;text-transform:none;letter-spacing:0}
-        .mic svg{width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-        .mic:hover{background:var(--surface)}
-        .mic.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:snapPulse 1.2s ease-in-out infinite}
-        .mic.busy{cursor:progress;background:var(--brand-soft, #EAF2FA);border-color:var(--brand);color:var(--brand)}
+        .voice{display:flex;flex-direction:column;gap:0}
+        .mic{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;height:44px;border:1px solid var(--brand);border-radius:8px;background:var(--brand);color:#fff;font:inherit;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 0 0 0 rgba(61,133,201,.45);animation:snapPulse 1.8s ease-out infinite}
+        .mic svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+        .mic:hover{background:var(--brand-hover);border-color:var(--brand-hover)}
+        .mic.again{background:var(--bg);color:var(--brand);animation:none;box-shadow:none}
+        .mic.again:hover{background:var(--brand-soft)}
+        .mic.rec{background:var(--danger);border-color:var(--danger);color:#fff;animation:snapPulseRed 1.2s ease-in-out infinite}
+        .mic.busy{cursor:progress;background:var(--brand-soft);border-color:var(--brand);color:var(--brand);animation:none;box-shadow:none}
         .mic.busy svg{display:none}
-        .mic.busy::before{content:'';width:11px;height:11px;border:2px solid var(--brand);border-top-color:transparent;border-radius:50%;animation:snapSpin .8s linear infinite;flex:none}
+        .mic.busy::before{content:'';width:13px;height:13px;border:2px solid var(--brand);border-top-color:transparent;border-radius:50%;animation:snapSpin .8s linear infinite;flex:none}
+        .mic[hidden]{display:none}
+        @keyframes snapPulse{0%{box-shadow:0 0 0 0 rgba(61,133,201,.45)}70%{box-shadow:0 0 0 9px rgba(61,133,201,0)}100%{box-shadow:0 0 0 0 rgba(61,133,201,0)}}
+        @keyframes snapPulseRed{0%,100%{box-shadow:0 0 0 0 rgba(180,35,24,.45)}50%{box-shadow:0 0 0 7px rgba(180,35,24,0)}}
         @keyframes snapSpin{to{transform:rotate(360deg)}}
+        .mic-status{font-size:11px;color:var(--muted);padding-top:5px}
         .mic-status.working{color:var(--brand)}
         .mic-bar{height:3px;border-radius:2px;background:var(--surface-2);overflow:hidden;margin-top:6px;display:none}
         .mic-bar.on{display:block}
         .mic-bar i{display:block;height:100%;width:40%;background:var(--brand);border-radius:2px;animation:snapSlide 1.1s ease-in-out infinite}
         @keyframes snapSlide{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}
-        @keyframes snapPulse{0%,100%{box-shadow:0 0 0 0 rgba(180,35,24,.45)}50%{box-shadow:0 0 0 6px rgba(180,35,24,0)}}
-        .mic-status{font-size:11px;color:var(--muted);padding-top:4px}
+        .voice-off{font-size:11px;color:var(--faint);padding:4px 0 2px}
+        textarea.note{margin-top:8px}
       </style>
       <div class="bg"></div>
       <div class="modal">
@@ -272,6 +278,13 @@
         <div class="body">
           <div class="cv-wrap"><canvas></canvas><input class="txt-in" type="text" placeholder="Type, Enter to place" hidden></div>
           <div class="side">
+            <div class="voice">
+              <button class="mic" type="button" title="Click, speak, click again to stop"><svg viewBox="0 0 16 16"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5"/></svg><span>Say what you want</span></button>
+              <div class="mic-bar"><i></i></div>
+              <div class="mic-status" hidden></div>
+              <div class="voice-off" hidden>Connect a project in the Snap popup to dictate.</div>
+            </div>
+            <textarea class="note" placeholder="…or type it here"></textarea>
             <label>Add to</label>
             <select class="dest"></select>
             <button type="button" class="new-toggle">New group options ▸</button>
@@ -283,10 +296,6 @@
               </div>
               <textarea class="expected" placeholder="Expected behavior"></textarea>
             </div>
-            <label class="note-label">Note for this screenshot<button class="mic" type="button" title="Dictate (click to start, click again to stop)" hidden><svg viewBox="0 0 16 16"><rect x="6" y="1.5" width="4" height="8" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 0 0 9 0M8 12v2.5M5.5 14.5h5"/></svg><span>Dictate</span></button></label>
-            <textarea class="note" placeholder="What is wrong here?"></textarea>
-            <div class="mic-bar"><i></i></div>
-            <div class="mic-status" hidden></div>
             <div class="err"></div>
             <div class="ctx"></div>
             <div class="busy-hint" hidden></div>
@@ -467,7 +476,7 @@
     // dictation (only when connected to a project: the studio transcribes)
     const mic = q('.mic'), micStatus = q('.mic-status'), noteEl = q('.note');
     let micState = 'idle', micTimer = null, micT0 = 0;
-    if (connection) mic.hidden = false;
+    if (!connection) { mic.hidden = true; q('.voice-off').hidden = false; }
     const micBar = q('.mic-bar');
     let workTimer = null;
     const setMicStatus = (text, working) => {
@@ -480,7 +489,9 @@
     const growNote = () => { noteEl.style.height = 'auto'; noteEl.style.height = Math.min(noteEl.scrollHeight + 2, window.innerHeight * 0.4) + 'px'; };
     noteEl.addEventListener('input', growNote);
     const micLabel = (t) => { mic.querySelector('span').textContent = t; };
-    const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); micLabel('Dictate'); noteEl.disabled = false; setMicStatus(''); };
+    const micIdleLabel = () => { const has = !!noteEl.value.trim(); mic.classList.toggle('again', has); micLabel(has ? 'Speak again' : 'Say what you want'); };
+    const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); noteEl.disabled = false; setMicStatus(''); micIdleLabel(); };
+    noteEl.addEventListener('input', () => { if (micState === 'idle') micIdleLabel(); });
     mic.addEventListener('click', async () => {
       if (micState === 'idle') {
         micState = 'starting'; mic.classList.add('busy'); setMicStatus('Starting microphone…', true);
@@ -561,7 +572,7 @@
       else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (e.shiftKey && !btnB.hidden) save('board'); else save(btnA.dataset.act); }
     };
     window.addEventListener('keydown', onKey, true);
-    setTimeout(() => q('.note').focus(), 0);
+    setTimeout(() => (connection ? mic : q('.note')).focus(), 0);
   }
 
   function esc(s) { return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
