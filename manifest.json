@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "OpenKBS Snap",
-  "version": "0.2.0",
-  "description": "Select an area of the page, draw on the screenshot, dictate or type a note, save it into an issue. Send issues straight to your OpenKBS board, or export a zip.",
+  "version": "0.3.0",
+  "description": "Snap a spot on any page, draw, say what you want. Send it to your OpenKBS board or start a vibecoding chat right away.",
   "permissions": [
     "storage",
     "unlimitedStorage",
@@ -11,7 +11,9 @@
     "downloads",
     "contextMenus",
     "activeTab",
-    "offscreen"
+    "offscreen",
+    "alarms",
+    "notifications"
   ],
   "host_permissions": [
     "<all_urls>"

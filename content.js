@@ -92,9 +92,9 @@
     c.width = Math.max(1, Math.round(rect.w * sx));
     c.height = Math.max(1, Math.round(rect.h * sy));
     c.getContext('2d').drawImage(img, rect.x * sx, rect.y * sy, rect.w * sx, rect.h * sy, 0, 0, c.width, c.height);
-    const issues = ((await chrome.runtime.sendMessage({ type: 'snap:issues' })) || {}).issues || [];
-    const connection = ((await chrome.runtime.sendMessage({ type: 'snap:connection' })) || {}).connection || null;
-    openEditor(c, context, issues, sx, connection);
+    const picker = (await chrome.runtime.sendMessage({ type: 'snap:issues' })) || {};
+    const connInfo = (await chrome.runtime.sendMessage({ type: 'snap:connection' })) || {};
+    openEditor(c, context, { pending: picker.pending || [], recent: picker.recent || [] }, sx, connInfo.connection || null, connInfo.busy || null);
   }
 
   function loadImage(src) {
@@ -147,9 +147,9 @@
   }
 
   // ---------- editor ----------
-  function openEditor(base, context, issues, sx, connection) {
+  function openEditor(base, context, issues, sx, connection, busy) {
     const W = base.width, H = base.height;
-    const SIDE = 300;
+    const SIDE = 320;
     const maxW = Math.max(240, window.innerWidth * 0.94 - SIDE - 48);
     const maxH = Math.max(200, window.innerHeight * 0.9 - 110);
     const f = Math.min(maxW / W, maxH / H, 1);
@@ -198,6 +198,7 @@
         input:focus,select:focus,textarea:focus{border-color:var(--brand);box-shadow:0 0 0 3px rgba(61,133,201,.18)}
         input::placeholder,textarea::placeholder{color:var(--faint)}
         textarea{resize:vertical;min-height:60px}
+        textarea.note{min-height:96px;max-height:40vh;overflow-y:auto;resize:none;line-height:1.45}
         .row{display:flex;gap:6px}
         .new-issue{display:none;flex-direction:column;gap:6px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:6px}
         .new-issue.show{display:flex}
@@ -205,8 +206,17 @@
         .ctx b{color:var(--text);font-weight:600}
         .ctx code{background:var(--surface-2);padding:0 4px;border-radius:3px;font:11px ui-monospace,Menlo,monospace}
         .ctx .warn{color:var(--danger)}
-        .actions{display:flex;gap:8px;justify-content:flex-end;padding-top:12px}
-        .actions button{height:34px;padding:0 14px;border:1px solid var(--border-strong);background:var(--bg);border-radius:6px;font:inherit;font-weight:500;cursor:pointer;color:var(--text)}
+        .actions{display:flex;gap:8px;align-items:center;padding-top:12px}
+        .actions .ghost-btn{border-color:transparent;color:var(--muted)}
+        .actions .ghost-btn:hover{background:var(--surface);color:var(--text)}
+        .busy-hint{font-size:11px;color:var(--muted);padding-top:8px;line-height:1.45}
+        .busy-hint b{color:var(--text);font-weight:600}
+        .busy-hint button{border:1px solid var(--border-strong);background:var(--bg);border-radius:5px;padding:2px 8px;font:inherit;font-size:11px;cursor:pointer;color:var(--text);margin-left:6px}
+        .busy-hint button:hover{background:var(--surface)}
+        .new-toggle{align-self:flex-start;border:0;background:none;padding:6px 0 0;font:inherit;font-size:11px;color:var(--muted);cursor:pointer}
+        .new-toggle:hover{color:var(--text)}
+        .new-toggle.open{color:var(--brand)}
+        .actions button{height:34px;padding:0 12px;border:1px solid var(--border-strong);background:var(--bg);border-radius:6px;font:inherit;font-weight:500;cursor:pointer;color:var(--text);white-space:nowrap;flex:none}
         .actions button:hover{background:var(--surface)}
         .actions .primary{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:600}
         .actions .primary:hover{background:var(--brand-hover)}
@@ -223,7 +233,7 @@
       </style>
       <div class="bg"></div>
       <div class="modal">
-        <div class="hd"><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt=""><h1>Annotate screenshot</h1><span class="hint"><kbd>Esc</kbd> cancel &nbsp; <kbd>⌘</kbd><kbd>↵</kbd> save</span></div>
+        <div class="hd"><img src="${chrome.runtime.getURL('icons/icon-32.png')}" alt=""><h1>Annotate screenshot</h1><span class="hint"><kbd>Esc</kbd> cancel &nbsp; <kbd>⌘</kbd><kbd>↵</kbd> main action &nbsp; <kbd>⌘</kbd><kbd>⇧</kbd><kbd>↵</kbd> to board</span></div>
         <div class="tb">
           <div class="seg">
             <button data-tool="pen" class="on">${ICON.pen}Pen</button>
@@ -239,10 +249,11 @@
         <div class="body">
           <div class="cv-wrap"><canvas></canvas><input class="txt-in" type="text" placeholder="Type, Enter to place" hidden></div>
           <div class="side">
-            <label>Add to issue</label>
-            <select class="issue"></select>
+            <label>Add to</label>
+            <select class="dest"></select>
+            <button type="button" class="new-toggle">New group options ▸</button>
             <div class="new-issue">
-              <input class="title" placeholder="Issue title (optional)">
+              <input class="title" placeholder="Title (optional)">
               <div class="row">
                 <select class="type"><option value="bug">Bug</option><option value="ux">UX</option><option value="idea">Idea</option><option value="question">Question</option></select>
                 <select class="prio"><option value="low">Low priority</option><option value="medium" selected>Medium priority</option><option value="high">High priority</option><option value="critical">Critical priority</option></select>
@@ -254,7 +265,8 @@
             <div class="mic-status" hidden></div>
             <div class="err"></div>
             <div class="ctx"></div>
-            <div class="actions"><button class="cancel">Cancel</button><button class="save primary">Save screenshot</button></div>
+            <div class="busy-hint" hidden></div>
+            <div class="actions"><button class="cancel ghost-btn">Cancel</button><span class="grow"></span><button class="btn-b" hidden>To board</button><button class="btn-a primary">New chat</button></div>
           </div>
         </div>
       </div>`);
@@ -265,20 +277,54 @@
     canvas.style.width = Math.round(W * f) + 'px';
     canvas.style.height = Math.round(H * f) + 'px';
 
-    // issue picker
-    const issueSel = q('.issue'), newBox = q('.new-issue');
-    for (const i of issues) {
-      const o = document.createElement('option');
-      o.value = i.id; o.textContent = `#${i.n} ${i.title} (${i.shots})`;
-      issueSel.appendChild(o);
+    // Destination: a new group (sent to a chat or the board, or kept pending),
+    // a pending group (local add), or a sent group (follow-up into its chat /
+    // more screenshots on its card). Buttons follow the choice.
+    const destSel = q('.dest'), newBox = q('.new-issue'), newToggle = q('.new-toggle');
+    const btnA = q('.btn-a'), btnB = q('.btn-b'), busyHint = q('.busy-hint');
+    const addOpt = (parent, value, text) => { const o = document.createElement('option'); o.value = value; o.textContent = text; parent.appendChild(o); return o; };
+    addOpt(destSel, 'new', connection ? 'New' : 'New (pending)');
+    if (connection) addOpt(destSel, 'new-pending', 'New · keep pending, send later');
+    if (issues.pending.length) {
+      const g = document.createElement('optgroup'); g.label = 'Pending';
+      for (const i of issues.pending) addOpt(g, 'p:' + i.id, `#${i.n} ${i.title} · ${i.shots} ${i.shots === 1 ? 'screenshot' : 'screenshots'}`);
+      destSel.appendChild(g);
     }
-    const newOpt = document.createElement('option');
-    newOpt.value = '__new'; newOpt.textContent = '+ New issue';
-    issueSel.appendChild(newOpt);
-    issueSel.value = issues.length ? issues[issues.length - 1].id : '__new';
-    const syncNew = () => newBox.classList.toggle('show', issueSel.value === '__new');
-    issueSel.addEventListener('change', syncNew); syncNew();
-    q('.title').placeholder = `Issue ${issues.length + 1} (rename if you like)`;
+    if (issues.recent.length) {
+      const g = document.createElement('optgroup'); g.label = 'Sent';
+      for (const i of issues.recent) {
+        const st = i.link.kind === 'card' ? 'on board' : (i.live && i.live.state) || 'chat';
+        addOpt(g, 's:' + i.id, `✓ ${i.title} · ${i.link.kind === 'card' ? 'card' : 'chat'}, ${st}`);
+      }
+      destSel.appendChild(g);
+    }
+    const findIssue = (id) => issues.pending.find((i) => i.id === id) || issues.recent.find((i) => i.id === id);
+    const choice = () => {
+      const v = destSel.value;
+      if (v === 'new') return { kind: 'new' };
+      if (v === 'new-pending') return { kind: 'new-pending' };
+      const issue = findIssue(v.slice(2));
+      return v.startsWith('p:') ? { kind: 'pending', issue } : { kind: 'sent', issue };
+    };
+    const busyWorking = connection && busy && busy.working > 0 ? busy : null;
+    const busyName = busyWorking ? (busyWorking.chats[0] && busyWorking.chats[0].title) || 'A chat' : '';
+    const showHint = (html) => { busyHint.hidden = !html; busyHint.innerHTML = html || ''; };
+    const syncButtons = () => {
+      const c = choice();
+      btnB.hidden = true; btnA.dataset.mode = '';
+      newToggle.hidden = !(c.kind === 'new' || c.kind === 'new-pending');
+      if (c.kind === 'new' && connection) { btnA.textContent = 'New chat'; btnA.dataset.act = 'chat'; btnB.hidden = false; btnB.textContent = 'To board'; }
+      else if (c.kind === 'new' || c.kind === 'new-pending') { btnA.textContent = 'Save'; btnA.dataset.act = 'local'; }
+      else if (c.kind === 'pending') { btnA.textContent = `Add to #${c.issue.n}`; btnA.dataset.act = 'local'; }
+      else { btnA.textContent = `Add to «${(c.issue.title || '').slice(0, 24)}»`; btnA.dataset.act = 'add'; }
+      if (c.kind === 'new' && connection && busyWorking) showHint(`<b>${esc(busyName)}</b> is working — a new chat will start when it is free.<button type="button" data-parallel="1">Start anyway</button>`);
+      else if (c.kind === 'sent' && c.issue.link.kind === 'chat' && busyWorking && !busyWorking.chats.some((x) => x.sessionId === c.issue.link.sessionId)) showHint(`<b>${esc(busyName)}</b> is working — the follow-up will be held until it is free.`);
+      else showHint('');
+    };
+    destSel.addEventListener('change', syncButtons); syncButtons();
+    busyHint.addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.parallel) save('chat', { mode: 'parallel' }); if (b.dataset.force) save('add', { force: true }); });
+    newToggle.addEventListener('click', () => { const open = newBox.classList.toggle('show'); newToggle.classList.toggle('open', open); newToggle.textContent = open ? 'New group options ▾' : 'New group options ▸'; if (open) q('.title').focus(); });
+    q('.title').placeholder = `Issue ${issues.pending.length + issues.recent.length + 1} (rename if you like)`;
 
     q('.ctx').innerHTML = `<b>${esc(shortUrl(context.url))}</b><br>` +
       `${context.viewport.width}×${context.viewport.height} @${context.dpr}x` +
@@ -399,6 +445,9 @@
     let micState = 'idle', micTimer = null, micT0 = 0;
     if (connection) mic.hidden = false;
     const setMicStatus = (text) => { micStatus.hidden = !text; micStatus.textContent = text || ''; };
+    // The note grows with its content (typing or dictation) up to 40vh, then scrolls.
+    const growNote = () => { noteEl.style.height = 'auto'; noteEl.style.height = Math.min(noteEl.scrollHeight + 2, window.innerHeight * 0.4) + 'px'; };
+    noteEl.addEventListener('input', growNote);
     const micLabel = (t) => { mic.querySelector('span').textContent = t; };
     const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); micLabel('Dictate'); };
     mic.addEventListener('click', async () => {
@@ -422,38 +471,62 @@
         const text = (t.text || '').trim();
         if (!text) { setMicStatus('No speech recognised.'); return; }
         noteEl.value = (noteEl.value.trim() ? noteEl.value.replace(/\s+$/, '') + ' ' : '') + text;
+        growNote();
         setMicStatus('');
         noteEl.focus();
+        noteEl.setSelectionRange(noteEl.value.length, noteEl.value.length);
       }
     });
 
     // actions
     const close = () => { if (micState === 'rec') chrome.runtime.sendMessage({ type: 'snap:mic-cancel' }); window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
-    const save = async () => {
-      const errEl = q('.err');
-      let issueId = issueSel.value, newIssue = null;
-      if (issueId === '__new') {
-        issueId = null;
-        const title = q('.title').value.trim() || `Issue ${issues.length + 1}`;
-        newIssue = { title, type: q('.type').value, priority: q('.prio').value, expected: q('.expected').value.trim() };
-      }
+    let saving = false;
+    const setBusyUi = (on, label) => { saving = on; btnA.disabled = btnB.disabled = on; if (label) btnA.textContent = label; };
+    // act: 'local' (pending group), 'chat' / 'board' (new group sent now), 'add' (sent group).
+    const save = async (act, o = {}) => {
+      if (saving) return;
+      const errEl = q('.err'); errEl.style.display = 'none';
+      const c = choice();
       if (!txtIn.hidden) commitText();
-      q('.save').disabled = true; q('.save').textContent = 'Saving…';
       redraw(true);
       const png = canvas.toDataURL('image/png');
-      const res = await chrome.runtime.sendMessage({
-        type: 'snap:save', issueId, newIssue, png,
-        shot: { note: q('.note').value.trim(), context, vectors: shapes },
-      });
-      if (!res || res.error) { errEl.textContent = 'Save failed: ' + (res && res.error || 'no response'); errEl.style.display = 'block'; q('.save').disabled = false; q('.save').textContent = 'Save screenshot'; return; }
-      close();
-      toast(`Saved → issue #${res.issueIndex} "${res.issueTitle}" · screenshot ${res.shotIndex}`);
+      const shot = { note: q('.note').value.trim(), context, vectors: shapes };
+      const fail = (m) => { errEl.textContent = m; errEl.style.display = 'block'; setBusyUi(false); syncButtons(); };
+      try {
+        if (act === 'add') {
+          setBusyUi(true, 'Sending…');
+          const r = await chrome.runtime.sendMessage({ type: 'snap:add-to', issueId: c.issue.id, shot: { ...shot, png }, force: !!o.force });
+          if (!r || r.error) return fail('Send failed: ' + (r && r.error || 'no response'));
+          if (r.result === 'held') { setBusyUi(false); syncButtons(); showHint(`Held: <b>${esc(busyName || 'another chat')}</b> is working.<button type="button" data-force="1">Send anyway</button>`); return; }
+          if (r.result === 'busy') return fail('That chat could not take the message right now. Try again in a moment.');
+          close();
+          toast(c.issue.link.kind === 'card' ? `Added to card «${c.issue.title}»` : `Sent to chat «${c.issue.title}»`);
+          return;
+        }
+        // local save first (new or pending group)
+        let issueId = null, newIssue = null;
+        if (c.kind === 'pending') issueId = c.issue.id;
+        else {
+          const title = q('.title').value.trim() || '';
+          newIssue = { title: title || `Issue ${issues.pending.length + issues.recent.length + 1}`, type: q('.type').value, priority: q('.prio').value, expected: q('.expected').value.trim() };
+        }
+        setBusyUi(true, act === 'local' ? 'Saving…' : 'Sending…');
+        const res = await chrome.runtime.sendMessage({ type: 'snap:save', issueId, newIssue, png, shot });
+        if (!res || res.error) return fail('Save failed: ' + (res && res.error || 'no response'));
+        if (act === 'local') { close(); toast(c.kind === 'pending' ? `Added to #${c.issue.n}` : `Saved as pending · ${res.issueTitle}`); return; }
+        const r = await chrome.runtime.sendMessage({ type: 'snap:send-issue', issueId: res.issueId, dest: act === 'board' ? 'board' : 'chat', mode: o.mode || 'queue' });
+        if (!r || r.error) return fail((act === 'board' ? 'Card' : 'Chat') + ' failed (kept as pending): ' + (r && r.error || 'no response'));
+        close();
+        if (act === 'board') toast(`Card created: «${r.link.title}»`);
+        else toast(r.live.state === 'queued' ? `Chat queued: «${r.link.title}» — starts when the project is free` : `Chat started: «${r.link.title}»`);
+      } catch (e) { fail(String(e && e.message || e)); }
     };
     q('.cancel').addEventListener('click', close);
-    q('.save').addEventListener('click', save);
+    btnA.addEventListener('click', () => save(btnA.dataset.act));
+    btnB.addEventListener('click', () => save('board'));
     const onKey = (e) => {
       if (e.key === 'Escape') { if (!txtIn.hidden) { hideTextInput(); return; } close(); }
-      else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+      else if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); if (e.shiftKey && !btnB.hidden) save('board'); else save(btnA.dataset.act); }
     };
     window.addEventListener('keydown', onKey, true);
     setTimeout(() => q('.note').focus(), 0);

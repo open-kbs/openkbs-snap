@@ -2,53 +2,55 @@
 <html><head><meta charset="utf-8"><title>OpenKBS Snap</title>
 <link rel="stylesheet" href="ui.css">
 <style>
-body{width:280px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:10px}
-.status{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;display:flex;flex-direction:column;gap:2px}
-.status .name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.status .counts{font-size:12px;color:var(--muted)}
-.menu{display:flex;flex-direction:column;gap:6px}
+body{width:300px;padding:14px 14px 12px;display:flex;flex-direction:column;gap:10px}
 .conn{border:1px solid var(--border);border-radius:var(--radius);padding:8px 10px;display:flex;flex-direction:column;gap:8px}
 .conn-head{display:flex;align-items:center;gap:8px;min-height:22px}
-.conn-text{flex:1;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conn-text{flex:1;font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .dot.on{background:var(--success)}
 .conn-actions{display:flex;flex-direction:column;gap:6px}
 .conn-actions .row input{flex:1;font-size:12px;padding:5px 8px}
+.link{border:0;background:none;padding:0;font:inherit;font-size:11px;color:var(--muted);cursor:pointer;text-align:left}
+.link:hover{color:var(--brand)}
 .model-row{display:flex;align-items:center;gap:8px;margin:0}
 .model-row span{flex:none;font-size:11px}
 .model-row select{font-size:12px;padding:4px 6px}
-#send.btn-primary{background:var(--success);border-color:var(--success)}
-#send.btn-primary:hover{background:#0f6a34;border-color:#0f6a34}
-#capture.secondary{background:var(--bg);color:var(--text);border-color:var(--border-strong);height:34px;font-size:13px}
+.menu{display:flex;flex-direction:column;gap:6px}
 .lbl{display:inline-flex;align-items:center;gap:9px}
 .lbl svg{flex:none;opacity:.9}
 .btn-primary .lbl svg{opacity:1}
 .btn-primary{height:40px;font-size:14px}
-.confirm{display:none;gap:6px;align-items:center;background:var(--danger-soft);border:1px solid #FECDCA;border-radius:var(--radius-sm);padding:8px}
-.confirm.show{display:flex}
-.confirm span{flex:1;font-size:12px;color:var(--danger)}
+#send{background:#ECFDF3;border-color:#ABEFC6;color:#067647}
+#send:hover{background:#DCFAE6;border-color:#75E0A7}
+#send .faint{color:#067647;opacity:.8}
+.bottom{gap:4px}
+.more{position:relative}
+.more-menu{position:absolute;right:0;bottom:calc(100% + 4px);top:auto}
 </style></head>
 <body>
   <div class="brand"><img src="icons/icon-32.png" alt=""><h1>OpenKBS Snap</h1></div>
-  <div class="status"><div id="name" class="name">Untitled report</div><div id="counts" class="counts"></div></div>
   <div id="conn" class="conn">
     <div class="conn-head"><span class="dot" id="connDot"></span><span id="connText" class="conn-text">Not connected to a project</span><button id="disconnect" class="btn btn-ghost btn-sm" hidden>Disconnect</button></div>
     <div id="connActions" class="conn-actions">
       <button id="connectTab" class="btn btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5l3-3M7 11l-1.5 1.5a2.1 2.1 0 0 1-3-3L4 8M9 5l1.5-1.5a2.1 2.1 0 0 1 3 3L12 8"/></svg>Connect to this project</span></button>
-      <div class="row"><input id="connUrl" placeholder="or paste a studio URL…"><button id="connectUrl" class="btn btn-sm">Connect</button></div>
+      <button id="pasteToggle" class="link">Not on the studio tab? Paste its URL</button>
+      <div id="pasteRow" class="row" hidden><input id="connUrl" placeholder="https://…studio URL"><button id="connectUrl" class="btn btn-sm">Connect</button></div>
     </div>
-    <label id="modelRow" class="model-row" hidden><span class="faint">Dictation model</span><select id="model"></select></label>
+    <div id="liveLine" class="live-line" hidden></div>
+    <label id="modelRow" class="model-row" hidden><span class="faint">Dictation</span><select id="model"></select></label>
   </div>
   <div class="menu">
-    <button id="send" class="btn btn-primary btn-block" hidden><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9M8 4l4 4-4 4"/><rect x="12" y="2.5" width="2" height="11" rx="1"/></svg>Send to board</span><span id="sendCount" class="faint"></span></button>
     <button id="capture" class="btn btn-primary btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5V3a1 1 0 0 1 1-1h2M11 2h2a1 1 0 0 1 1 1v2M14 11v2a1 1 0 0 1-1 1h-2M5 14H3a1 1 0 0 1-1-1v-2"/><rect x="5" y="5" width="6" height="6" rx="1" stroke-dasharray="2 1.5"/></svg>Capture area</span><kbd>⌥ ⇧ S</kbd></button>
-    <button id="panel" class="btn btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M10 2.5v11M12 5.5h0M12 7.5h0"/></svg>Report panel</span><kbd>⌥ ⇧ P</kbd></button>
-    <button id="export" class="btn btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7l3 3 3-3M3 11v1.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V11"/></svg>Export report</span><span class="faint">.zip</span></button>
+    <button id="send" class="btn btn-block" hidden><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8h9M8 4l4 4-4 4"/><rect x="12" y="2.5" width="2" height="11" rx="1"/></svg>Send pending to board</span><span id="sendCount" class="faint"></span></button>
+    <button id="panel" class="btn btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="2" y="2.5" width="12" height="11" rx="1.5"/><path d="M10 2.5v11M12 5.5h0M12 7.5h0"/></svg>Panel</span><kbd>⌥ ⇧ P</kbd></button>
+  </div>
+  <div id="recentWrap" hidden>
+    <div class="section-title">Recent<span class="grow"></span><button id="refresh" class="link">refresh</button></div>
+    <div id="recent" class="recent"></div>
   </div>
   <div class="divider"></div>
-  <button id="new" class="btn btn-ghost btn-block"><span class="lbl"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>New report</span><span class="faint">clears current</span></button>
-  <div id="confirm" class="confirm"><span>Discard current report?</span><button id="confirmNo" class="btn btn-sm">Keep</button><button id="confirmYes" class="btn btn-sm btn-danger">Discard</button></div>
+  <div class="row bottom"><span id="pendingText" class="faint"></span><span class="grow"></span><span class="more"><button id="more" class="btn btn-ghost btn-sm btn-icon" title="More" aria-label="More">⋯</button><div id="moreMenu" class="more-menu" hidden><button id="export">Export pending<span class="hint">.zip</span></button><button id="clearPending">Clear pending</button><button id="clearRecent">Clear recent</button></div></span></div>
   <div id="msg" class="msg"></div>
-  <script src="lib/store.js"></script><script src="lib/zip.js"></script><script src="lib/report.js"></script><script src="lib/export.js"></script>
+  <script src="lib/store.js"></script><script src="lib/zip.js"></script><script src="lib/report.js"></script><script src="lib/export.js"></script><script src="lib/recent.js"></script>
   <script src="popup.js"></script>
 </body></html>

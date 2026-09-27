@@ -1,41 +1,17 @@
 # openkbs-snap
 
-Browser extension for collecting visual context during screen-share reviews:
-select an area of the page, draw on the screenshot, add a note, save into an
-issue. A session of issues exports as a zip with a Markdown report that the
-studio agent can read directly.
+One move: snap a spot on any page, draw on it, say what you want. Then send it to
+one of two places in your OpenKBS Studio project:
 
-## Vocabulary
+- **Board** – one card per group of snaps, screenshots attached, for later.
+- **Chat** – a vibecoding chat starts right away (or is queued while another chat
+  works; "Start anyway" runs it in parallel). Later snaps go into the same chat as
+  follow-ups, or onto the same card.
 
-- **Session** – one review meeting. Ordered list of issues.
-- **Issue** – title, type (bug / ux / idea), priority, expected behavior, free text, one or more shots.
-- **Shot** – annotated screenshot + optional note + auto-captured page context.
-
-## Export format
-
-```
-review-<date>-<time>.zip
-  REPORT.md          # whole session, issues in order, images inline
-  report.json        # same data, machine-readable
-  issues/
-    01/
-      shot-1.png     # annotations burned in (what a model sees)
-      shot-1.json    # annotation vectors + page context
-```
-
-Page context captured per shot, no typing needed: URL, viewport, device pixel
-ratio, user agent, DOM selector under the selection, console errors from the
-last 30 s, timestamp.
-
-## Delivery targets
-
-1. Zip download.
-2. Send to studio – post the bundle into a project chat.
-3. Board import – needs card attachments (not available yet).
-
-## Browsers
-
-Chrome MV3 first. Same WebExtension code for Edge / Firefox; Safari via Xcode converter.
+The plugin only stages snaps until they are sent; the studio is the source of
+truth. Sent groups stay in **Recent** with their live state (Queued / Working /
+Needs your answer / Done / On board): answer the AI's questions, open the chat or
+card, reload the captured tab. Export as a zip stays in the ⋯ menu as a rescue.
 
 ## Install (Chrome, unpacked)
 
@@ -44,11 +20,11 @@ Chrome MV3 first. Same WebExtension code for Edge / Firefox; Safari via Xcode co
 3. **Load unpacked** → pick the unzipped folder.
 4. Pin the "OpenKBS Snap" icon from the puzzle menu. Reload any tab that was open before installing.
 
-## Connect to a project (direct send + dictation)
+## Connect to a project
 
 Open your OpenKBS Studio project in a tab, click the Snap icon → **Connect to this project** (or paste the studio URL). The extension then talks to that studio with your existing studio login; no token to copy. Once connected:
 
-- **Send to board** (popup or panel) creates one card per issue with the screenshots attached, exactly like the studio's zip import. The report is marked as sent; start a **New report** for the next batch.
+- In the editor, **New chat** (default, ⌘/Ctrl+Enter) starts a chat from this snap; **To board** (⌘⇧Enter) makes a card; **Add to …** picks a pending group (local), a sent chat (follow-up) or a sent card (more screenshots). "New · keep pending" stages without sending; **Send pending to board** in the popup sends all staged groups as cards.
 - **Dictate** in the screenshot editor: click the mic next to the note, talk, click Stop. The clip is transcribed by the connected project (model selectable in the popup: Gemini 3.5 Transcribe, GPT-4o Transcribe, Gemini Flash) and the text lands in the note. Chrome asks for the microphone once, on an extension page.
 
 ## Use

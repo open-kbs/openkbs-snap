@@ -7,26 +7,33 @@
 </head>
 <body>
   <header>
-    <div class="top"><img src="icons/icon-32.png" width="20" height="20" alt=""><h1>Report</h1><button id="clear" class="btn btn-ghost btn-sm">New report</button></div>
-    <input id="sessionName" placeholder="Report name (e.g. Review with client, 26 Sep)">
-    <div id="confirm" class="confirm"><span>Discard current report?</span><button id="confirmNo" class="btn btn-sm">Keep</button><button id="confirmYes" class="btn btn-sm btn-danger">Discard</button></div>
+    <div class="top"><img src="icons/icon-32.png" width="20" height="20" alt=""><h1 id="projectName">Snap</h1><span class="more"><button id="more" class="btn btn-ghost btn-sm btn-icon" title="More" aria-label="More">⋯</button><div id="moreMenu" class="more-menu" hidden><button id="export">Export pending<span class="hint">.zip</span></button><button id="clearPending">Clear pending</button><button id="clearRecent">Clear recent</button></div></span></div>
     <div class="bar">
       <button id="capture" class="btn btn-primary"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 5V3a1 1 0 0 1 1-1h2M11 2h2a1 1 0 0 1 1 1v2M14 11v2a1 1 0 0 1-1 1h-2M5 14H3a1 1 0 0 1-1-1v-2"/><rect x="5" y="5" width="6" height="6" rx="1" stroke-dasharray="2 1.5"/></svg>Capture area</button>
-      <button id="send" class="btn btn-primary" hidden>Send to board</button>
-      <button id="export" class="btn"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v8M5 7l3 3 3-3M3 11v1.5A1.5 1.5 0 0 0 4.5 14h7a1.5 1.5 0 0 0 1.5-1.5V11"/></svg>Export .zip</button>
+      <button id="send" class="btn" hidden>Send pending to board</button>
     </div>
-    <div id="stats" class="stats"></div>
+    <div id="liveLine" class="live-line" hidden></div>
   </header>
-  <main id="issues"></main>
-  <div id="empty" class="empty">
-    No issues yet.<br><br>
-    Press <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> on any page (Alt+Shift+S on Windows), or use <b>Capture area</b>, then draw over the part you want to report.
-  </div>
+  <main>
+    <section id="pendingWrap" hidden>
+      <div class="section-title">Pending<span id="pendingCount" class="faint"></span></div>
+      <div id="issues" class="issues"></div>
+    </section>
+    <section id="recentWrap" hidden>
+      <div class="section-title">Recent<span class="grow"></span><button id="refresh" class="link">refresh</button></div>
+      <div id="recent" class="recent"></div>
+    </section>
+    <div id="empty" class="empty">
+      Nothing here yet.<br><br>
+      Press <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> on any page (Alt+Shift+S on Windows), or use <b>Capture area</b>, then draw over the part you want to talk about.
+    </div>
+  </main>
   <div id="lightbox" class="lightbox" hidden><img alt=""></div>
   <script src="lib/store.js"></script>
   <script src="lib/zip.js"></script>
   <script src="lib/report.js"></script>
   <script src="lib/export.js"></script>
+  <script src="lib/recent.js"></script>
   <script src="panel.js"></script>
 </body>
 </html>
