@@ -538,25 +538,38 @@
         levels = []; lastSoundAt = Date.now(); showWave('live'); setMicStatus('Listening… click Stop when done.');
         micTimer = setInterval(() => { const s = Math.round((Date.now() - micT0) / 1000); micLabel(`Stop ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`); }, 500);
       } else if (micState === 'rec') {
+        await stopAndTranscribe();
+      }
+    });
+    // Stop the recording, transcribe, append the text to the note. Returns the
+    // promise Send waits on when the user forgot to press Stop first.
+    let transcribing = null;
+    const stopAndTranscribe = () => {
+      if (transcribing) return transcribing;
+      transcribing = (async () => {
         micState = 'busy'; clearInterval(micTimer); mic.classList.remove('rec'); mic.classList.add('busy'); micLabel('Transcribing');
         noteEl.disabled = true;
         showWave('transcribing');
         setMicStatus('Transcribing, the text will appear in the note…', true);
-        const rec = await chrome.runtime.sendMessage({ type: 'snap:mic-stop' });
-        if (!rec || rec.error) { finishMic(); setMicStatus(rec && rec.error || 'Recording failed'); return; }
-        if (rec.bytes < 1500) { finishMic(); setMicStatus('Too short — nothing recorded.'); return; }
-        const t = await chrome.runtime.sendMessage({ type: 'snap:transcribe', dataUrl: rec.dataUrl, format: rec.format });
-        finishMic();
-        if (!t || t.error) { setMicStatus('Transcription failed: ' + (t && t.error || 'no response')); return; }
-        const text = (t.text || '').trim();
-        if (!text) { setMicStatus('No speech recognised.'); return; }
-        noteEl.value = (noteEl.value.trim() ? noteEl.value.replace(/\s+$/, '') + ' ' : '') + text;
-        growNote();
-        setMicStatus('');
-        noteEl.focus();
-        noteEl.setSelectionRange(noteEl.value.length, noteEl.value.length);
-      }
-    });
+        try {
+          const rec = await chrome.runtime.sendMessage({ type: 'snap:mic-stop' });
+          if (!rec || rec.error) { finishMic(); setMicStatus(rec && rec.error || 'Recording failed'); return false; }
+          if (rec.bytes < 1500) { finishMic(); setMicStatus('Too short — nothing recorded.'); return false; }
+          const t = await chrome.runtime.sendMessage({ type: 'snap:transcribe', dataUrl: rec.dataUrl, format: rec.format });
+          finishMic();
+          if (!t || t.error) { setMicStatus('Transcription failed: ' + (t && t.error || 'no response')); return false; }
+          const text = (t.text || '').trim();
+          if (!text) { setMicStatus('No speech recognised.'); return false; }
+          noteEl.value = (noteEl.value.trim() ? noteEl.value.replace(/\s+$/, '') + ' ' : '') + text;
+          growNote();
+          setMicStatus('');
+          noteEl.focus();
+          noteEl.setSelectionRange(noteEl.value.length, noteEl.value.length);
+          return true;
+        } finally { transcribing = null; }
+      })();
+      return transcribing;
+    };
 
     // actions
     const close = () => { micLevelSink = null; hideWave(); if (micState === 'rec') chrome.runtime.sendMessage({ type: 'snap:mic-cancel' }); window.removeEventListener('keydown', onKey, true); teardown(); busy = false; };
@@ -566,6 +579,14 @@
     const save = async (act, o = {}) => {
       if (saving) return;
       const errEl = q('.err'); errEl.style.display = 'none';
+      // Send while still recording (or still transcribing): finish the dictation
+      // first so the request never leaves with an empty note.
+      if (micState === 'rec' || transcribing) {
+        setBusyUi(true, 'Finishing dictation…');
+        const ok = micState === 'rec' ? await stopAndTranscribe() : await transcribing;
+        setBusyUi(false); syncButtons();
+        if (!ok && !q('.note').value.trim()) return;
+      }
       const c = choice();
       if (!txtIn.hidden) commitText();
       redraw(true);
