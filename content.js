@@ -37,7 +37,9 @@
     shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = html;
     // Keep page-level keyboard shortcuts (Gmail, Slack, the studio…) from firing while we are open.
-    for (const t of ['keydown', 'keyup', 'keypress']) host.addEventListener(t, (e) => e.stopPropagation());
+    for (const t of ['keydown', 'keyup', 'keypress', 'mousedown', 'mouseup', 'click', 'dblclick', 'contextmenu', 'pointerdown', 'pointerup', 'touchstart', 'touchend', 'wheel']) {
+      host.addEventListener(t, (e) => e.stopPropagation());
+    }
     document.documentElement.appendChild(host);
     return shadow;
   }
@@ -53,17 +55,28 @@
   }
 
   // ---------- selection ----------
-  function startSelect() {
+  // The page is captured the moment the hotkey fires, BEFORE any overlay: an
+  // open dialog that closes on the first click outside is still in the shot.
+  // The user then draws the rectangle on the frozen image.
+  async function startSelect() {
     if (busy) return;
     busy = true;
+    let shot;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'snap:capture' });
+      if (!res || res.error) throw new Error(res && res.error || 'no response from background');
+      shot = await loadImage(res.dataUrl);
+    } catch (err) { busy = false; toast('Snap failed: ' + (err && err.message || err)); return; }
     const sh = mount(`
       <style>
+        .frozen{position:fixed;inset:0;width:100%;height:100%;object-fit:fill;pointer-events:none}
         .dim{position:fixed;inset:0;background:rgba(17,24,39,.18);cursor:crosshair}
         .sel{position:fixed;border:2px solid #3D85C9;box-shadow:0 0 0 9999px rgba(17,24,39,.4);display:none;pointer-events:none;box-sizing:border-box;border-radius:2px}
         .hint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:rgba(27,31,36,.92);color:#fff;font-size:12px;padding:6px 12px;border-radius:6px;pointer-events:none;box-shadow:0 4px 16px rgba(0,0,0,.25);transition:opacity .25s} .hint.off{opacity:0} .hint kbd{padding:0 4px;border:1px solid rgba(255,255,255,.3);border-radius:3px;font:11px ui-monospace,Menlo,monospace}
       </style>
-      <div class="dim"></div><div class="sel"></div>
+      <img class="frozen" alt=""><div class="dim"></div><div class="sel"></div>
       <div class="hint">Drag to select the area to capture &nbsp;·&nbsp; <kbd>Esc</kbd> cancel</div>`);
+    sh.querySelector('.frozen').src = shot.src;
     const dim = sh.querySelector('.dim'), sel = sh.querySelector('.sel'), hint = sh.querySelector('.hint');
     const hideHint = () => hint.classList.add('off');
     setTimeout(hideHint, 2000);
@@ -92,20 +105,16 @@
       update(e);
       cleanup();
       if (!rect || rect.w < 8 || rect.h < 8) { teardown(); busy = false; toast('Selection too small'); return; }
-      try { await finish(rect); } catch (err) { console.error('Snap:', err); toast('Snap failed: ' + (err && err.message || err)); busy = false; teardown(); }
+      try { await finish(rect, shot); } catch (err) { console.error('Snap:', err); toast('Snap failed: ' + (err && err.message || err)); busy = false; teardown(); }
     });
   }
 
-  async function finish(rect) {
+  async function finish(rect, img) {
     const cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
     host.style.display = 'none';
     const el = document.elementFromPoint(cx, cy);
     const context = collectContext(rect, el);
     teardown();
-    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
-    const res = await chrome.runtime.sendMessage({ type: 'snap:capture' });
-    if (!res || res.error) throw new Error(res && res.error || 'no response from background');
-    const img = await loadImage(res.dataUrl);
     const sx = img.naturalWidth / window.innerWidth, sy = img.naturalHeight / window.innerHeight;
     const c = document.createElement('canvas');
     c.width = Math.max(1, Math.round(rect.w * sx));
