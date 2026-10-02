@@ -533,6 +533,9 @@
       clearInterval(workTimer);
       if (working) { const t0 = Date.now(); workTimer = setInterval(() => { micStatus.textContent = `${text} ${Math.round((Date.now() - t0) / 1000)} s`; }, 500); }
     };
+    // The note grows with its content (typing or dictation) up to 40vh, then scrolls.
+    const growNote = () => { noteEl.style.height = 'auto'; noteEl.style.height = Math.min(noteEl.scrollHeight + 2, window.innerHeight * 0.4) + 'px'; };
+    noteEl.addEventListener('input', growNote);
     const micLabel = (t) => { mic.querySelector('span').textContent = t; };
     const micIdleLabel = () => { const has = !!noteEl.value.trim(); mic.classList.toggle('again', has); micLabel(has ? 'Speak again' : 'Say what you want'); };
     const finishMic = () => { micState = 'idle'; mic.classList.remove('busy', 'rec'); noteEl.disabled = false; hideWave(); setMicStatus(''); micIdleLabel(); };
@@ -592,7 +595,9 @@
       // first so the request never leaves with an empty note.
       if (micState === 'rec' || transcribing) {
         setBusyUi(true, 'Finishing dictation…');
-        const ok = micState === 'rec' ? await stopAndTranscribe() : await transcribing;
+        let ok = false;
+        try { ok = micState === 'rec' ? await stopAndTranscribe() : await transcribing; }
+        catch (e) { console.error('Snap dictation:', e); finishMic(); setMicStatus('Dictation failed: ' + (e && e.message || e)); }
         setBusyUi(false); syncButtons();
         if (!ok && !q('.note').value.trim()) return;
       }

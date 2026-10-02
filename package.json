@@ -1,6 +1,6 @@
 {
   "name": "openkbs-snap",
-  "version": "0.3.9",
+  "version": "0.3.10",
   "private": true,
   "description": "Chrome extension: annotate screenshots into issues, export a report the OpenKBS board can import.",
   "scripts": {
